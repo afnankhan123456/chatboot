@@ -10,7 +10,7 @@ HF_API_KEY = os.environ.get("HF_API_KEY")
 if not HF_API_KEY:
     print("ERROR: HF_API_KEY not found in environment variables")
 
-# ✅ Stable free model
+# Stable free model
 API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 
 headers = {
@@ -55,17 +55,19 @@ def chat():
         )
 
         print("STATUS CODE:", response.status_code)
-        print("RESPONSE:", response.text)
+        print("RESPONSE TEXT:", response.text)
 
-        # ❌ If API fails
+        # 👇 YAHI INDENTATION FIX HAI
         if response.status_code != 200:
-            return jsonify({"reply": "Baby model thoda busy hai 😅 20 second baad try karo..."})
+            return jsonify({
+                "reply": f"Status Code: {response.status_code} - {response.text}"
+            })
 
         result = response.json()
 
-        # HF error case
+        # Hugging Face error
         if isinstance(result, dict) and "error" in result:
-            return jsonify({"reply": "Baby model load ho raha hai 😅 thoda wait karo..."})
+            return jsonify({"reply": f"HF Error: {result['error']}"})
 
         # Success case
         if isinstance(result, list) and len(result) > 0:
@@ -76,11 +78,11 @@ def chat():
 
             return jsonify({"reply": reply})
 
-        return jsonify({"reply": "Baby kuch technical issue aa gaya 😅"})
+        return jsonify({"reply": "Baby kuch unexpected issue aa gaya 😅"})
 
     except Exception as e:
         print("ERROR:", e)
-        return jsonify({"reply": "Baby system thoda confuse ho gaya 😅 fir se try karo..."})
+        return jsonify({"reply": f"Exception: {str(e)}"})
 
 if __name__ == "__main__":
     app.run()
