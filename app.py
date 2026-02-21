@@ -10,11 +10,12 @@ HF_API_KEY = os.environ.get("HF_API_KEY")
 if not HF_API_KEY:
     print("ERROR: HF_API_KEY not found in environment variables")
 
-# Stable free model
-API_URL = "https://router.huggingface.co/models/google/flan-t5-large"
+# Stable free working endpoint
+API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
 
 headers = {
-    "Authorization": f"Bearer {HF_API_KEY}"
+    "Authorization": f"Bearer {HF_API_KEY}",
+    "Content-Type": "application/json"
 }
 
 SYSTEM_PROMPT = """
@@ -41,23 +42,20 @@ def chat():
 
         payload = {
             "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 100,
-                "temperature": 0.8
+            "options": {
+                "wait_for_model": True
             }
         }
 
         response = requests.post(
             API_URL,
             headers=headers,
-            json=payload,
-            timeout=60
+            json=payload
         )
 
         print("STATUS CODE:", response.status_code)
         print("RESPONSE TEXT:", response.text)
 
-        # 👇 YAHI INDENTATION FIX HAI
         if response.status_code != 200:
             return jsonify({
                 "reply": f"Status Code: {response.status_code} - {response.text}"
@@ -87,6 +85,3 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
-
