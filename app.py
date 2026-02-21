@@ -11,7 +11,7 @@ if not HF_API_KEY:
     print("ERROR: HF_API_KEY not found in environment variables")
 
 # Stable free model
-API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-large"
 
 headers = {
     "Authorization": f"Bearer {HF_API_KEY}"
@@ -87,4 +87,5 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
