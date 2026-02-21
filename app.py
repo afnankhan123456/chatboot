@@ -10,8 +10,8 @@ HF_API_KEY = os.environ.get("HF_API_KEY")
 if not HF_API_KEY:
     print("ERROR: HF_API_KEY not found in environment variables")
 
-# Stable free working endpoint
-API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
+# ✅ 2026 Working Router Endpoint
+API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-base"
 
 headers = {
     "Authorization": f"Bearer {HF_API_KEY}",
@@ -42,8 +42,10 @@ def chat():
 
         payload = {
             "inputs": prompt,
-            "options": {
-                "wait_for_model": True
+            "parameters": {
+                "max_new_tokens": 100,
+                "temperature": 0.8,
+                "return_full_text": False
             }
         }
 
@@ -63,11 +65,6 @@ def chat():
 
         result = response.json()
 
-        # Hugging Face error
-        if isinstance(result, dict) and "error" in result:
-            return jsonify({"reply": f"HF Error: {result['error']}"})
-
-        # Success case
         if isinstance(result, list) and len(result) > 0:
             reply = result[0].get("generated_text", "").strip()
 
