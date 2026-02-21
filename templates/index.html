@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My GF Chatbot ??</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #111;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 400px;
+            height: 500px;
+            background: #1e1e1e;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .input-box {
+            display: flex;
+        }
+        input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+        }
+        button {
+            padding: 10px;
+            background: hotpink;
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+        .user {
+            text-align: right;
+            margin: 5px;
+        }
+        .bot {
+            text-align: left;
+            margin: 5px;
+            color: #ff8ec7;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="messages" id="messages"></div>
+    <div class="input-box">
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+function sendMessage() {
+    let input = document.getElementById("messageInput");
+    let message = input.value;
+
+    if (!message) return;
+
+    let messagesDiv = document.getElementById("messages");
+
+    messagesDiv.innerHTML += `<div class="user">${message}</div>`;
+
+    fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message })
+    })
+    .then(res => res.json())
+    .then(data => {
+        messagesDiv.innerHTML += `<div class="bot">${data.reply}</div>`;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
+
+    input.value = "";
+}
+</script>
+
+</body>
+</html>
