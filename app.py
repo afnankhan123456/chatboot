@@ -4,7 +4,7 @@ from groq import Groq
 
 app = Flask(__name__)
 
-# ✅ Groq API Key
+# Groq API Key
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
@@ -32,9 +32,8 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        # ✅ Groq Chat Completion
         completion = client.chat.completions.create(
-            model="mixtral-8x7b-32768",
+            model="mistral-saba-24b",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
