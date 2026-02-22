@@ -142,7 +142,7 @@ def chat():
             model="openai/gpt-oss-20b",
             messages=messages,
             temperature=0.95,
-            max_tokens=90
+            max_tokens=60
         )
 
         reply = completion.choices[0].message.content.strip()
@@ -174,5 +174,6 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
 
