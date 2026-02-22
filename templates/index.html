@@ -84,6 +84,7 @@
             border-radius: 8px;
             line-height: 1.5;
             font-size: 15px;
+            white-space: pre-wrap;
         }
 
         .user {
@@ -127,6 +128,11 @@
             cursor: pointer;
         }
 
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         button:hover {
             background: #ff1a8c;
         }
@@ -149,37 +155,47 @@
 
 <body>
 
-    <div class="sidebar">
-        <div class="logo">
-            <span>💗</span> My GF Chat
-        </div>
+<div class="sidebar">
+    <div class="logo">
+        <span>💗</span> My GF Chat
+    </div>
 
-        <div class="new-chat" onclick="clearChat()">
-            + New Chat
+    <div class="new-chat" onclick="clearChat()">
+        + New Chat
+    </div>
+</div>
+
+<div class="chat-area">
+
+    <div class="messages" id="messages"></div>
+
+    <div class="input-container">
+        <div class="input-box">
+            <input type="text" id="messageInput" placeholder="Message her..." />
+            <button id="sendBtn" onclick="sendMessage()">Send</button>
         </div>
     </div>
 
-    <div class="chat-area">
-
-        <div class="messages" id="messages"></div>
-
-        <div class="input-container">
-            <div class="input-box">
-                <input type="text" id="messageInput" placeholder="Message her..." />
-                <button onclick="sendMessage()">Send</button>
-            </div>
-        </div>
-
-    </div>
+</div>
 
 <script>
 
+const input = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+const messagesDiv = document.getElementById("messages");
+
+input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+        sendMessage();
+    }
+});
+
 function sendMessage() {
-    let input = document.getElementById("messageInput");
+
     let message = input.value.trim();
     if (!message) return;
 
-    let messagesDiv = document.getElementById("messages");
+    sendBtn.disabled = true;
 
     // User Message
     let userRow = document.createElement("div");
@@ -191,21 +207,22 @@ function sendMessage() {
 
     userRow.appendChild(userMsg);
     messagesDiv.appendChild(userRow);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
     input.value = "";
+    scrollToBottom();
 
-    // Bot Row (empty initially)
+    // Bot Message Container
     let botRow = document.createElement("div");
     botRow.className = "message-row bot-row";
 
     let botMsg = document.createElement("div");
     botMsg.className = "message bot";
-    botMsg.innerText = "";
+    botMsg.innerText = "Typing...";
 
     botRow.appendChild(botMsg);
     messagesDiv.appendChild(botRow);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    scrollToBottom();
 
     fetch("/chat", {
         method: "POST",
@@ -213,27 +230,50 @@ function sendMessage() {
         body: JSON.stringify({ message: message })
     })
     .then(response => {
+
+        if (!response.body) {
+            throw new Error("No response body");
+        }
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
+        botMsg.innerText = "";
+
         function read() {
             reader.read().then(({ done, value }) => {
-                if (done) return;
 
-                const chunk = decoder.decode(value);
+                if (done) {
+                    sendBtn.disabled = false;
+                    return;
+                }
+
+                const chunk = decoder.decode(value, { stream: true });
                 botMsg.innerText += chunk;
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                scrollToBottom();
 
                 read();
+            })
+            .catch(error => {
+                botMsg.innerText = "Network error 😔";
+                sendBtn.disabled = false;
             });
         }
 
         read();
+    })
+    .catch(error => {
+        botMsg.innerText = "Server error 😔";
+        sendBtn.disabled = false;
     });
 }
 
 function clearChat() {
-    document.getElementById("messages").innerHTML = "";
+    messagesDiv.innerHTML = "";
+}
+
+function scrollToBottom() {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 </script>
