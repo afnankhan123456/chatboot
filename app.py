@@ -1,22 +1,16 @@
 import os
-import requests
 from flask import Flask, render_template, request, jsonify
+from groq import Groq
 
 app = Flask(__name__)
 
-# Hugging Face API Key
-HF_API_KEY = os.environ.get("HF_API_KEY")
+# ✅ Groq API Key
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-if not HF_API_KEY:
-    print("ERROR: HF_API_KEY not found in environment variables")
+if not GROQ_API_KEY:
+    print("ERROR: GROQ_API_KEY not found in environment variables")
 
-# ✅ 2026 Working Router Endpoint
-API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-base"
-
-headers = {
-    "Authorization": f"Bearer {HF_API_KEY}",
-    "Content-Type": "application/json"
-}
+client = Groq(api_key=GROQ_API_KEY)
 
 SYSTEM_PROMPT = """
 You are a sweet, caring, romantic girlfriend.
@@ -38,42 +32,23 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        prompt = f"{SYSTEM_PROMPT}\nUser: {user_message}\nAssistant:"
-
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 100,
-                "temperature": 0.8,
-                "return_full_text": False
-            }
-        }
-
-        response = requests.post(
-            API_URL,
-            headers=headers,
-            json=payload
+        # ✅ Groq Chat Completion
+        completion = client.chat.completions.create(
+            model="mixtral-8x7b-32768",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.8,
+            max_tokens=150
         )
 
-        print("STATUS CODE:", response.status_code)
-        print("RESPONSE TEXT:", response.text)
+        reply = completion.choices[0].message.content.strip()
 
-        if response.status_code != 200:
-            return jsonify({
-                "reply": f"Status Code: {response.status_code} - {response.text}"
-            })
+        if not reply:
+            reply = "Baby mujhe samajh nahi aaya 😅"
 
-        result = response.json()
-
-        if isinstance(result, list) and len(result) > 0:
-            reply = result[0].get("generated_text", "").strip()
-
-            if not reply:
-                reply = "Baby mujhe samajh nahi aaya 😅"
-
-            return jsonify({"reply": reply})
-
-        return jsonify({"reply": "Baby kuch unexpected issue aa gaya 😅"})
+        return jsonify({"reply": reply})
 
     except Exception as e:
         print("ERROR:", e)
