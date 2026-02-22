@@ -141,7 +141,7 @@ def chat():
         completion = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=messages,
-            temperature=0.95,
+            temperature=0.9,
             max_tokens=60
         )
 
@@ -174,6 +174,7 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
