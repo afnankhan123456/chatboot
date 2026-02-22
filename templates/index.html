@@ -19,7 +19,6 @@
             color: white;
         }
 
-        /* Sidebar */
         .sidebar {
             width: 260px;
             background: #202123;
@@ -54,7 +53,6 @@
             background: #3a3b45;
         }
 
-        /* Chat Area */
         .chat-area {
             flex: 1;
             display: flex;
@@ -96,7 +94,6 @@
             background: #3c3f4a;
         }
 
-        /* Input */
         .input-container {
             padding: 20px;
             background: #40414f;
@@ -134,12 +131,6 @@
             background: #ff1a8c;
         }
 
-        /* Typing animation */
-        .typing {
-            font-style: italic;
-            opacity: 0.7;
-        }
-
         @media (max-width: 900px) {
             .messages {
                 padding: 20px;
@@ -153,7 +144,6 @@
                 display: none;
             }
         }
-
     </style>
 </head>
 
@@ -191,7 +181,7 @@ function sendMessage() {
 
     let messagesDiv = document.getElementById("messages");
 
-    // User message
+    // User Message
     let userRow = document.createElement("div");
     userRow.className = "message-row user-row";
 
@@ -201,23 +191,20 @@ function sendMessage() {
 
     userRow.appendChild(userMsg);
     messagesDiv.appendChild(userRow);
-
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
     input.value = "";
 
-    // Typing indicator
-    let typingRow = document.createElement("div");
-    typingRow.className = "message-row bot-row typing";
-    typingRow.id = "typingIndicator";
+    // Bot Row (empty initially)
+    let botRow = document.createElement("div");
+    botRow.className = "message-row bot-row";
 
-    let typingMsg = document.createElement("div");
-    typingMsg.className = "message bot";
-    typingMsg.innerText = "Typing...";
+    let botMsg = document.createElement("div");
+    botMsg.className = "message bot";
+    botMsg.innerText = "";
 
-    typingRow.appendChild(typingMsg);
-    messagesDiv.appendChild(typingRow);
-
+    botRow.appendChild(botMsg);
+    messagesDiv.appendChild(botRow);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
     fetch("/chat", {
@@ -225,22 +212,23 @@ function sendMessage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: message })
     })
-    .then(res => res.json())
-    .then(data => {
+    .then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-        document.getElementById("typingIndicator").remove();
+        function read() {
+            reader.read().then(({ done, value }) => {
+                if (done) return;
 
-        let botRow = document.createElement("div");
-        botRow.className = "message-row bot-row";
+                const chunk = decoder.decode(value);
+                botMsg.innerText += chunk;
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-        let botMsg = document.createElement("div");
-        botMsg.className = "message bot";
-        botMsg.innerText = data.reply;
+                read();
+            });
+        }
 
-        botRow.appendChild(botMsg);
-        messagesDiv.appendChild(botRow);
-
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        read();
     });
 }
 
