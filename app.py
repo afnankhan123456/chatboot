@@ -141,7 +141,7 @@ def chat():
             full_reply = ""
 
             stream = client.chat.completions.create(
-                model="llama3-8b-8192",  # Faster + Stable on Groq
+                model="openai/gpt-oss-20b",  # Faster + Stable on Groq
                 messages=messages,
                 temperature=0.9,
                 max_tokens=80,
@@ -196,3 +196,4 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
