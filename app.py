@@ -113,7 +113,7 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        # 🔥 Fetch last 6 chats for memory
+        #  Fetch last 4 chats for memory
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
@@ -121,7 +121,7 @@ def chat():
             SELECT user_message, bot_reply 
             FROM chats 
             ORDER BY created_at DESC 
-            LIMIT 6
+            LIMIT 4
         """)
         previous_chats = cursor.fetchall()
 
@@ -142,7 +142,7 @@ def chat():
             model="openai/gpt-oss-20b",
             messages=messages,
             temperature=0.95,
-            max_tokens=150
+            max_tokens=90
         )
 
         reply = completion.choices[0].message.content.strip()
@@ -174,4 +174,5 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
