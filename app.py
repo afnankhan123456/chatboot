@@ -46,7 +46,7 @@ def init_db():
 init_db()
 
 # =========================
-# Improved Romantic System Prompt (Upgraded)
+# Improved Romantic System Prompt (UNCHANGED)
 # =========================
 
 SYSTEM_PROMPT = """
@@ -112,37 +112,39 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        # Fetch last 4 chats for memory
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
+        # Fetch last 4 chats
+        conn_memory = psycopg2.connect(DATABASE_URL)
+        cursor_memory = conn_memory.cursor()
 
-        cursor.execute("""
+        cursor_memory.execute("""
             SELECT user_message, bot_reply 
             FROM chats 
             ORDER BY created_at DESC 
             LIMIT 4
         """)
-        previous_chats = cursor.fetchall()
+        previous_chats = cursor_memory.fetchall()
         previous_chats.reverse()
+
+        cursor_memory.close()
+        conn_memory.close()
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-        # Add memory context
         for user_msg, bot_msg in previous_chats:
             messages.append({"role": "user", "content": user_msg})
             messages.append({"role": "assistant", "content": bot_msg})
 
-        # Add current user message
         messages.append({"role": "user", "content": user_message})
 
         def generate():
+
             full_reply = ""
 
             stream = client.chat.completions.create(
-                model="openai/gpt-oss-20b",
+                model="llama3-8b-8192",  # Faster + Stable on Groq
                 messages=messages,
                 temperature=0.9,
-                max_tokens=60,
+                max_tokens=80,
                 stream=True
             )
 
@@ -152,19 +154,35 @@ def chat():
                     full_reply += content
                     yield content
 
-            if not full_reply:
+            if not full_reply.strip():
                 full_reply = "Awww tum itne cute ho 💕"
+                yield full_reply
 
-            # Save chat after complete generation
-            cursor.execute(
-                "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
-                (user_message, full_reply)
-            )
-            conn.commit()
-            cursor.close()
-            conn.close()
+            # Save chat AFTER full generation
+            try:
+                conn_save = psycopg2.connect(DATABASE_URL)
+                cursor_save = conn_save.cursor()
 
-        return Response(stream_with_context(generate()), content_type="text/plain")
+                cursor_save.execute(
+                    "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
+                    (user_message, full_reply)
+                )
+                conn_save.commit()
+
+                cursor_save.close()
+                conn_save.close()
+
+            except Exception as db_error:
+                print("DB SAVE ERROR:", db_error)
+
+        return Response(
+            stream_with_context(generate()),
+            content_type="text/plain",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no"
+            }
+        )
 
     except Exception as e:
         print("ERROR:", e)
