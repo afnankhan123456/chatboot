@@ -1,77 +1,163 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>My GF Chatbot ??</title>
+    <title>My GF Chatbot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <style>
-        body {
-            font-family: Arial;
-            background: #111;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", sans-serif;
         }
-        .chat-container {
-            width: 400px;
-            height: 500px;
-            background: #1e1e1e;
-            border-radius: 10px;
+
+        body {
+            background-color: #0f0f0f;
+            display: flex;
+            height: 100vh;
+            color: white;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background-color: #171717;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
         }
+
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo span {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+
+        .new-chat {
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .new-chat:hover {
+            background: #333;
+        }
+
+        /* Main Chat Area */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #212121;
+        }
+
         .messages {
             flex: 1;
-            padding: 10px;
+            padding: 20px;
             overflow-y: auto;
         }
-        .input-box {
-            display: flex;
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 70%;
+            padding: 12px 15px;
+            border-radius: 10px;
+            line-height: 1.4;
+            font-size: 14px;
         }
+
+        .user {
+            background-color: #303030;
+            align-self: flex-end;
+        }
+
+        .bot {
+            background-color: #444654;
+            align-self: flex-start;
+        }
+
+        .input-container {
+            display: flex;
+            padding: 15px;
+            background: #171717;
+        }
+
         input {
             flex: 1;
-            padding: 10px;
+            padding: 12px;
+            border-radius: 8px;
             border: none;
+            outline: none;
+            background: #2a2a2a;
+            color: white;
         }
+
         button {
-            padding: 10px;
-            background: hotpink;
+            margin-left: 10px;
+            padding: 12px 18px;
+            background: #ff4da6;
             border: none;
+            border-radius: 8px;
             color: white;
             cursor: pointer;
         }
-        .user {
-            text-align: right;
-            margin: 5px;
-        }
-        .bot {
-            text-align: left;
-            margin: 5px;
-            color: #ff8ec7;
+
+        button:hover {
+            background: #ff1a8c;
         }
     </style>
 </head>
+
 <body>
 
-<div class="chat-container">
-    <div class="messages" id="messages"></div>
-    <div class="input-box">
-        <input type="text" id="messageInput" placeholder="Type a message..." />
-        <button onclick="sendMessage()">Send</button>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <span>💗</span> My GF Chat
+        </div>
+
+        <div class="new-chat" onclick="clearChat()">
+            + New Chat
+        </div>
     </div>
-</div>
+
+    <!-- Chat Area -->
+    <div class="chat-area">
+
+        <div class="messages" id="messages"></div>
+
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Message her..." />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+
+    </div>
 
 <script>
+
 function sendMessage() {
     let input = document.getElementById("messageInput");
-    let message = input.value;
-
+    let message = input.value.trim();
     if (!message) return;
 
     let messagesDiv = document.getElementById("messages");
 
-    messagesDiv.innerHTML += `<div class="user">${message}</div>`;
+    let userMsg = document.createElement("div");
+    userMsg.className = "message user";
+    userMsg.innerText = message;
+    messagesDiv.appendChild(userMsg);
+
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
     fetch("/chat", {
         method: "POST",
@@ -80,12 +166,20 @@ function sendMessage() {
     })
     .then(res => res.json())
     .then(data => {
-        messagesDiv.innerHTML += `<div class="bot">${data.reply}</div>`;
+        let botMsg = document.createElement("div");
+        botMsg.className = "message bot";
+        botMsg.innerText = data.reply;
+        messagesDiv.appendChild(botMsg);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
 
     input.value = "";
 }
+
+function clearChat() {
+    document.getElementById("messages").innerHTML = "";
+}
+
 </script>
 
 </body>
