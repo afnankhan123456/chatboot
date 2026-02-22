@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>My GF Chatbot</title>
+    <title>My GF Chat</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
@@ -9,11 +9,11 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: "Segoe UI", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         body {
-            background-color: #0f0f0f;
+            background: #343541;
             display: flex;
             height: 100vh;
             color: white;
@@ -21,15 +21,15 @@
 
         /* Sidebar */
         .sidebar {
-            width: 250px;
-            background-color: #171717;
+            width: 260px;
+            background: #202123;
             padding: 20px;
             display: flex;
             flex-direction: column;
         }
 
         .logo {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             margin-bottom: 30px;
             display: flex;
@@ -37,77 +37,95 @@
         }
 
         .logo span {
-            font-size: 24px;
+            font-size: 22px;
             margin-right: 10px;
         }
 
         .new-chat {
-            padding: 10px;
-            background: #2a2a2a;
-            border-radius: 8px;
+            padding: 12px;
+            background: #2a2b32;
+            border-radius: 6px;
             cursor: pointer;
             text-align: center;
+            font-size: 14px;
         }
 
         .new-chat:hover {
-            background: #333;
+            background: #3a3b45;
         }
 
-        /* Main Chat Area */
+        /* Chat Area */
         .chat-area {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background-color: #212121;
         }
 
         .messages {
             flex: 1;
-            padding: 20px;
             overflow-y: auto;
+            padding: 30px 20%;
+        }
+
+        .message-row {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .user-row {
+            justify-content: flex-end;
+        }
+
+        .bot-row {
+            justify-content: flex-start;
         }
 
         .message {
-            margin-bottom: 15px;
-            max-width: 70%;
-            padding: 12px 15px;
-            border-radius: 10px;
-            line-height: 1.4;
-            font-size: 14px;
+            max-width: 600px;
+            padding: 14px 18px;
+            border-radius: 8px;
+            line-height: 1.5;
+            font-size: 15px;
         }
 
         .user {
-            background-color: #303030;
-            align-self: flex-end;
+            background: #444654;
         }
 
         .bot {
-            background-color: #444654;
-            align-self: flex-start;
+            background: #3c3f4a;
         }
 
+        /* Input */
         .input-container {
+            padding: 20px;
+            background: #40414f;
             display: flex;
-            padding: 15px;
-            background: #171717;
+            justify-content: center;
+        }
+
+        .input-box {
+            width: 60%;
+            display: flex;
+            background: #343541;
+            border-radius: 8px;
+            padding: 8px;
         }
 
         input {
             flex: 1;
-            padding: 12px;
-            border-radius: 8px;
+            background: transparent;
             border: none;
             outline: none;
-            background: #2a2a2a;
             color: white;
+            font-size: 15px;
         }
 
         button {
-            margin-left: 10px;
-            padding: 12px 18px;
             background: #ff4da6;
             border: none;
-            border-radius: 8px;
+            padding: 8px 14px;
+            border-radius: 6px;
             color: white;
             cursor: pointer;
         }
@@ -115,12 +133,32 @@
         button:hover {
             background: #ff1a8c;
         }
+
+        /* Typing animation */
+        .typing {
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        @media (max-width: 900px) {
+            .messages {
+                padding: 20px;
+            }
+
+            .input-box {
+                width: 100%;
+            }
+
+            .sidebar {
+                display: none;
+            }
+        }
+
     </style>
 </head>
 
 <body>
 
-    <!-- Sidebar -->
     <div class="sidebar">
         <div class="logo">
             <span>💗</span> My GF Chat
@@ -131,14 +169,15 @@
         </div>
     </div>
 
-    <!-- Chat Area -->
     <div class="chat-area">
 
         <div class="messages" id="messages"></div>
 
         <div class="input-container">
-            <input type="text" id="messageInput" placeholder="Message her..." />
-            <button onclick="sendMessage()">Send</button>
+            <div class="input-box">
+                <input type="text" id="messageInput" placeholder="Message her..." />
+                <button onclick="sendMessage()">Send</button>
+            </div>
         </div>
 
     </div>
@@ -152,10 +191,32 @@ function sendMessage() {
 
     let messagesDiv = document.getElementById("messages");
 
+    // User message
+    let userRow = document.createElement("div");
+    userRow.className = "message-row user-row";
+
     let userMsg = document.createElement("div");
     userMsg.className = "message user";
     userMsg.innerText = message;
-    messagesDiv.appendChild(userMsg);
+
+    userRow.appendChild(userMsg);
+    messagesDiv.appendChild(userRow);
+
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    input.value = "";
+
+    // Typing indicator
+    let typingRow = document.createElement("div");
+    typingRow.className = "message-row bot-row typing";
+    typingRow.id = "typingIndicator";
+
+    let typingMsg = document.createElement("div");
+    typingMsg.className = "message bot";
+    typingMsg.innerText = "Typing...";
+
+    typingRow.appendChild(typingMsg);
+    messagesDiv.appendChild(typingRow);
 
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
@@ -166,14 +227,21 @@ function sendMessage() {
     })
     .then(res => res.json())
     .then(data => {
+
+        document.getElementById("typingIndicator").remove();
+
+        let botRow = document.createElement("div");
+        botRow.className = "message-row bot-row";
+
         let botMsg = document.createElement("div");
         botMsg.className = "message bot";
         botMsg.innerText = data.reply;
-        messagesDiv.appendChild(botMsg);
+
+        botRow.appendChild(botMsg);
+        messagesDiv.appendChild(botRow);
+
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
-
-    input.value = "";
 }
 
 function clearChat() {
