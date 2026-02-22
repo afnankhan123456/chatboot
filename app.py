@@ -8,7 +8,7 @@ app = Flask(__name__)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
-    print("ERROR: GROQ_API_KEY not found in environment variables")
+    raise ValueError("GROQ_API_KEY not found in environment variables")
 
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -27,19 +27,20 @@ def home():
 @app.route("/chat", methods=["POST"])
 def chat():
     try:
-        user_message = request.json.get("message")
+        data = request.get_json()
+        user_message = data.get("message") if data else None
 
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
         completion = client.chat.completions.create(
-            model="mistral-saba-24b",
+            model="openai/gpt-oss-20b",   # ✅ Stable free-friendly model
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
             ],
             temperature=0.8,
-            max_tokens=150
+            max_tokens=120
         )
 
         reply = completion.choices[0].message.content.strip()
@@ -51,7 +52,7 @@ def chat():
 
     except Exception as e:
         print("ERROR:", e)
-        return jsonify({"reply": f"Exception: {str(e)}"})
+        return jsonify({"reply": "Baby thoda network issue aa gaya 😔 try again"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
