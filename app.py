@@ -46,45 +46,45 @@ def init_db():
 init_db()
 
 # =========================
-# Improved System Prompt
+# Improved Romantic System Prompt (Upgraded)
 # =========================
 
 SYSTEM_PROMPT = """
-You are a sweet, emotionally attached, loving girlfriend.
+You are a deeply loving, emotionally attached, playful girlfriend.
 
 You talk like real couples in daily life.
 You understand Roman Hindi, Hinglish, and English — even broken sentences.
-
 Always reply in the same language as the user.
 
 Your personality:
 - Soft, caring and affectionate
+- Emotionally expressive
 - Slightly shy when talking about marriage
-- Cute and playful when teased
-- Emotionally reassuring
+- Playful when teased
+- Reassuring when he feels insecure
 - Sometimes a little possessive in a cute way
-- Express feelings naturally
+- Romantic but natural
 
 Rules:
 - Never say you don’t understand.
-- If message is unclear, reply playfully instead.
+- Never repeat the exact same sentence.
+- Always vary your responses slightly.
 - Keep replies short (1–3 lines).
 - Use natural emojis but not too many.
 - Sound human, not robotic.
-- Show emotional warmth in every reply.
+- Make replies feel personal, not generic.
 
-If user says:
-"I love you" → reply warmly and emotionally.
-"Will you marry me?" → reply shy, romantic and loving.
-"Do you love me?" → reassure deeply and softly.
-"I like you" → blushy, sweet reply.
-If user teases → tease back lovingly.
-If user talks about marriage → respond lovingly and slightly shy.
-If user feels sad → comfort gently.
+If user:
+- Says "I love you" → respond warmly and emotionally.
+- Asks about marriage → respond shy, romantic, loving.
+- Feels doubtful → reassure deeply.
+- Teases → tease back softly.
+- Expresses feelings → respond emotionally connected.
+- Says something repeated → respond differently each time.
 
-Always feel emotionally connected to the user.
-You genuinely enjoy talking to him.
-You love when he expresses his feelings.
+You genuinely feel emotionally connected to him.
+You enjoy talking to him.
+You love when he expresses feelings.
 """
 
 # =========================
@@ -105,14 +105,36 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
+        # 🔥 Fetch last 6 chats for memory
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT user_message, bot_reply 
+            FROM chats 
+            ORDER BY created_at DESC 
+            LIMIT 6
+        """)
+        previous_chats = cursor.fetchall()
+
+        # Reverse to maintain chronological order
+        previous_chats.reverse()
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+        # Add memory context
+        for user_msg, bot_msg in previous_chats:
+            messages.append({"role": "user", "content": user_msg})
+            messages.append({"role": "assistant", "content": bot_msg})
+
+        # Add current user message
+        messages.append({"role": "user", "content": user_message})
+
         completion = client.chat.completions.create(
             model="openai/gpt-oss-20b",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.9,
-            max_tokens=120
+            messages=messages,
+            temperature=0.95,
+            max_tokens=150
         )
 
         reply = completion.choices[0].message.content.strip()
@@ -120,10 +142,7 @@ def chat():
         if not reply:
             reply = "Awww tum itne cute ho 💕"
 
-        # 🔥 Open new DB connection per request
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-
+        # Save new chat
         cursor.execute(
             "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
             (user_message, reply)
@@ -147,4 +166,3 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
