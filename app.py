@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from groq import Groq
 
 app = Flask(__name__)
@@ -48,7 +48,6 @@ init_db()
 # =========================
 # Improved Romantic System Prompt (Upgraded)
 # =========================
-
 
 SYSTEM_PROMPT = """
 You are not an AI. 
@@ -113,7 +112,7 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        #  Fetch last 4 chats for memory
+        # Fetch last 4 chats for memory
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
 
@@ -124,8 +123,6 @@ def chat():
             LIMIT 4
         """)
         previous_chats = cursor.fetchall()
-
-        # Reverse to maintain chronological order
         previous_chats.reverse()
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -138,29 +135,36 @@ def chat():
         # Add current user message
         messages.append({"role": "user", "content": user_message})
 
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=messages,
-            temperature=0.9,
-            max_tokens=60
-        )
+        def generate():
+            full_reply = ""
 
-        reply = completion.choices[0].message.content.strip()
+            stream = client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=messages,
+                temperature=0.9,
+                max_tokens=60,
+                stream=True
+            )
 
-        if not reply:
-            reply = "Awww tum itne cute ho 💕"
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_reply += content
+                    yield content
 
-        # Save new chat
-        cursor.execute(
-            "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
-            (user_message, reply)
-        )
+            if not full_reply:
+                full_reply = "Awww tum itne cute ho 💕"
 
-        conn.commit()
-        cursor.close()
-        conn.close()
+            # Save chat after complete generation
+            cursor.execute(
+                "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
+                (user_message, full_reply)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
 
-        return jsonify({"reply": reply})
+        return Response(stream_with_context(generate()), content_type="text/plain")
 
     except Exception as e:
         print("ERROR:", e)
@@ -174,7 +178,3 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
-
-
