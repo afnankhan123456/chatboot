@@ -120,7 +120,7 @@ def chat():
             SELECT user_message, bot_reply 
             FROM chats 
             ORDER BY created_at DESC 
-            LIMIT 4
+            LIMIT 5
         """)
         previous_chats = cursor_memory.fetchall()
         previous_chats.reverse()
@@ -143,7 +143,7 @@ def chat():
             stream = client.chat.completions.create(
                 model="openai/gpt-oss-20b",  # Faster + Stable on Groq
                 messages=messages,
-                temperature=0.9,
+                temperature=0.7,
                 max_tokens=80,
                 stream=True
             )
@@ -196,4 +196,5 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
