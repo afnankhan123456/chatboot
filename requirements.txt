@@ -2,3 +2,4 @@ flask
 gunicorn
 groq
 psycopg2-binary
+google-generativeai
