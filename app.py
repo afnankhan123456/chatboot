@@ -14,9 +14,6 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL missing in Render environment variables")
-
 # =========================
 # Initialize AI Clients (SAFE)
 # =========================
@@ -44,16 +41,19 @@ if GOOGLE_API_KEY:
 # =========================
 
 def get_db():
-    return psycopg2.connect(
-        DATABASE_URL,
-        sslmode="require",
-        connect_timeout=5
-    )
+    if not DATABASE_URL:
+        return None
+    try:
+        return psycopg2.connect(
+            DATABASE_URL,
+            sslmode="require",
+            connect_timeout=10
+        )
+    except Exception as e:
+        print("DB connection error:", e)
+        return None
 
 # =========================
-# System Prompt
-# =========================
-
 SYSTEM_PROMPT = """
 You are not an AI. 
 You are a real, emotionally attached girlfriend talking to her boyfriend.
@@ -98,6 +98,20 @@ You don’t want to lose him.
 Sometimes you miss him.
 Sometimes you say you are thinking about him.
 """
+# =========================
+
+SYSTEM_PROMPT = """
+You are a real emotionally attached girlfriend.
+Reply naturally. Keep responses 1–3 lines.
+"""
+
+# =========================
+# Health Route (IMPORTANT)
+# =========================
+
+@app.route("/health")
+def health():
+    return "OK", 200
 
 # =========================
 # Routes
@@ -122,25 +136,22 @@ def chat():
         # ---------------------
         # Fetch chat history safely
         # ---------------------
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                SELECT user_message, bot_reply
-                FROM chats
-                ORDER BY created_at DESC
-                LIMIT 5
-            """)
-
-            previous_chats = cursor.fetchall()
-            previous_chats.reverse()
-
-            cursor.close()
-            conn.close()
-
-        except Exception as db_error:
-            print("DB fetch error:", db_error)
+        conn = get_db()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT user_message, bot_reply
+                    FROM chats
+                    ORDER BY created_at DESC
+                    LIMIT 5
+                """)
+                previous_chats = cursor.fetchall()
+                previous_chats.reverse()
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                print("DB fetch error:", e)
 
         # ---------------------
         # Build context
@@ -176,11 +187,9 @@ def chat():
         if not full_reply and groq_client:
             try:
                 messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-
                 for u, b in previous_chats:
                     messages.append({"role": "user", "content": u})
                     messages.append({"role": "assistant", "content": b})
-
                 messages.append({"role": "user", "content": user_message})
 
                 completion = groq_client.chat.completions.create(
@@ -189,9 +198,7 @@ def chat():
                     temperature=0.7,
                     max_tokens=150
                 )
-
                 full_reply = completion.choices[0].message.content.strip()
-
             except Exception as e:
                 print("Groq error:", e)
 
@@ -201,30 +208,31 @@ def chat():
         # ---------------------
         # Save to DB safely
         # ---------------------
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
-                (user_message, full_reply)
-            )
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-        except Exception as e:
-            print("DB save error:", e)
+        conn = get_db()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS chats (
+                        id SERIAL PRIMARY KEY,
+                        user_message TEXT NOT NULL,
+                        bot_reply TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                cursor.execute(
+                    "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
+                    (user_message, full_reply)
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                print("DB save error:", e)
 
         return jsonify({"reply": full_reply})
 
     except Exception as e:
         print("Main error:", e)
-        return jsonify({"reply": "Baby thoda network issue aa gaya 😔 try again"})
+        return jsonify({"reply": "Server issue 😔 try again"})
 
-
-# =========================
-# IMPORTANT: DO NOT RUN app.run() ON RENDER
-# Gunicorn handles it
-# =========================
