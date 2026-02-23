@@ -35,11 +35,6 @@
             align-items: center;
         }
 
-        .logo span {
-            font-size: 22px;
-            margin-right: 10px;
-        }
-
         .new-chat {
             padding: 12px;
             background: #2a2b32;
@@ -157,7 +152,10 @@
 
 <div class="sidebar">
     <div class="logo">
-        <span>💗</span> My GF Chat
+        <img src="https://raw.githubusercontent.com/afnankhan123456/chatboot/main/ChatGPT%20Image%20Feb%2023%2C%202026%2C%2006_09_24%20PM.png"
+             alt="Logo"
+             style="width:30px;height:30px;margin-right:10px;border-radius:6px;">
+        My GF Chat
     </div>
 
     <div class="new-chat" onclick="clearChat()">
@@ -197,7 +195,6 @@ function sendMessage() {
 
     sendBtn.disabled = true;
 
-    // User Message
     let userRow = document.createElement("div");
     userRow.className = "message-row user-row";
 
@@ -211,7 +208,6 @@ function sendMessage() {
     input.value = "";
     scrollToBottom();
 
-    // Bot Message Container
     let botRow = document.createElement("div");
     botRow.className = "message-row bot-row";
 
