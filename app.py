@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify
 from groq import Groq
 
 app = Flask(__name__)
@@ -25,7 +25,7 @@ if not DATABASE_URL:
 client = Groq(api_key=GROQ_API_KEY)
 
 # =========================
-# Initialize Database (Create Table Once)
+# Initialize Database
 # =========================
 
 def init_db():
@@ -46,7 +46,7 @@ def init_db():
 init_db()
 
 # =========================
-# Improved Romantic System Prompt (UNCHANGED)
+# Romantic System Prompt (UNCHANGED)
 # =========================
 
 SYSTEM_PROMPT = """
@@ -112,7 +112,7 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        # Fetch last 4 chats
+        # Fetch last 5 chats
         conn_memory = psycopg2.connect(DATABASE_URL)
         cursor_memory = conn_memory.cursor()
 
@@ -136,53 +136,40 @@ def chat():
 
         messages.append({"role": "user", "content": user_message})
 
-        def generate():
+        # =========================
+        # NON-STREAM COMPLETION
+        # =========================
 
-            full_reply = ""
-
-            stream = client.chat.completions.create(
-                model="openai/gpt-oss-20b",  # Faster + Stable on Groq
-                messages=messages,
-                temperature=0.7,
-                max_tokens=80,
-                stream=True
-            )
-
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    full_reply += content
-                    yield content
-
-            if not full_reply.strip():
-                full_reply = "Awww tum itne cute ho 💕"
-                yield full_reply
-
-            # Save chat AFTER full generation
-            try:
-                conn_save = psycopg2.connect(DATABASE_URL)
-                cursor_save = conn_save.cursor()
-
-                cursor_save.execute(
-                    "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
-                    (user_message, full_reply)
-                )
-                conn_save.commit()
-
-                cursor_save.close()
-                conn_save.close()
-
-            except Exception as db_error:
-                print("DB SAVE ERROR:", db_error)
-
-        return Response(
-            stream_with_context(generate()),
-            content_type="text/plain",
-            headers={
-                "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no"
-            }
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=150
         )
+
+        full_reply = completion.choices[0].message.content.strip()
+
+        if not full_reply:
+            full_reply = "Hmm… thoda glitch ho gaya 😅 phir se bolo na"
+
+        # Save chat
+        try:
+            conn_save = psycopg2.connect(DATABASE_URL)
+            cursor_save = conn_save.cursor()
+
+            cursor_save.execute(
+                "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
+                (user_message, full_reply)
+            )
+            conn_save.commit()
+
+            cursor_save.close()
+            conn_save.close()
+
+        except Exception as db_error:
+            print("DB SAVE ERROR:", db_error)
+
+        return jsonify({"reply": full_reply})
 
     except Exception as e:
         print("ERROR:", e)
@@ -196,5 +183,3 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
