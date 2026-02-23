@@ -131,7 +131,7 @@ def chat():
 
         except Exception as google_error:
             print("Google Error:", google_error)
-            full_reply = "Hmm… thoda glitch ho gaya 😅 phir se bolo na"
+            return jsonify({"reply": str(google_error)})
 
         # Save to DB
         try:
@@ -168,3 +168,4 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
