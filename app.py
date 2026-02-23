@@ -10,51 +10,48 @@ app = Flask(__name__)
 # Environment Variables
 # =========================
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
-DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL not found")
-
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY not found")
-
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY not found")
+    raise RuntimeError("DATABASE_URL missing in Render environment variables")
 
 # =========================
-# Initialize Clients
+# Initialize AI Clients (SAFE)
 # =========================
 
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = None
+google_model = None
 
-genai.configure(api_key=GOOGLE_API_KEY)
-google_model = genai.GenerativeModel("gemini-1.5-flash")
+if GROQ_API_KEY:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        print("Groq initialized")
+    except Exception as e:
+        print("Groq init error:", e)
 
-# =========================
-# Initialize Database
-# =========================
-
-def init_db():
-    conn = psycopg2.connect(DATABASE_URL)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS chats (
-            id SERIAL PRIMARY KEY,
-            user_message TEXT NOT NULL,
-            bot_reply TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-init_db()
+if GOOGLE_API_KEY:
+    try:
+        genai.configure(api_key=GOOGLE_API_KEY)
+        google_model = genai.GenerativeModel("gemini-1.5-flash")
+        print("Google initialized")
+    except Exception as e:
+        print("Google init error:", e)
 
 # =========================
-# Romantic System Prompt
+# Safe DB Connection
+# =========================
+
+def get_db():
+    return psycopg2.connect(
+        DATABASE_URL,
+        sslmode="require",
+        connect_timeout=5
+    )
+
+# =========================
+# System Prompt
 # =========================
 
 SYSTEM_PROMPT = """
@@ -120,23 +117,34 @@ def chat():
         if not user_message:
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
-        # Fetch last 5 chats
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
+        previous_chats = []
 
-        cursor.execute("""
-            SELECT user_message, bot_reply 
-            FROM chats 
-            ORDER BY created_at DESC 
-            LIMIT 5
-        """)
-        previous_chats = cursor.fetchall()
-        previous_chats.reverse()
+        # ---------------------
+        # Fetch chat history safely
+        # ---------------------
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
 
-        cursor.close()
-        conn.close()
+            cursor.execute("""
+                SELECT user_message, bot_reply
+                FROM chats
+                ORDER BY created_at DESC
+                LIMIT 5
+            """)
 
-        # Build context text for Google
+            previous_chats = cursor.fetchall()
+            previous_chats.reverse()
+
+            cursor.close()
+            conn.close()
+
+        except Exception as db_error:
+            print("DB fetch error:", db_error)
+
+        # ---------------------
+        # Build context
+        # ---------------------
         context_text = SYSTEM_PROMPT + "\n\n"
 
         for u, b in previous_chats:
@@ -144,72 +152,79 @@ def chat():
 
         context_text += f"User: {user_message}\nGF:"
 
-        # =========================
-        # TRY GOOGLE FIRST (FAST)
-        # =========================
+        full_reply = None
 
-        try:
-            response = google_model.generate_content(
-                context_text,
-                generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 150,
-                }
-            )
+        # ---------------------
+        # Google first
+        # ---------------------
+        if google_model:
+            try:
+                response = google_model.generate_content(
+                    context_text,
+                    generation_config={
+                        "temperature": 0.7,
+                        "max_output_tokens": 150,
+                    }
+                )
+                full_reply = response.text.strip()
+            except Exception as e:
+                print("Google error:", e)
 
-            full_reply = response.text.strip()
+        # ---------------------
+        # Groq fallback
+        # ---------------------
+        if not full_reply and groq_client:
+            try:
+                messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-        except Exception as google_error:
-            print("Google Failed, switching to Groq:", google_error)
+                for u, b in previous_chats:
+                    messages.append({"role": "user", "content": u})
+                    messages.append({"role": "assistant", "content": b})
 
-            # =========================
-            # FALLBACK TO GROQ
-            # =========================
+                messages.append({"role": "user", "content": user_message})
 
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                completion = groq_client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=150
+                )
 
-            for u, b in previous_chats:
-                messages.append({"role": "user", "content": u})
-                messages.append({"role": "assistant", "content": b})
+                full_reply = completion.choices[0].message.content.strip()
 
-            messages.append({"role": "user", "content": user_message})
-
-            completion = groq_client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=150
-            )
-
-            full_reply = completion.choices[0].message.content.strip()
+            except Exception as e:
+                print("Groq error:", e)
 
         if not full_reply:
             full_reply = "Hmm… thoda glitch ho gaya 😅 phir se bolo na"
 
-        # Save to DB
-        conn_save = psycopg2.connect(DATABASE_URL)
-        cursor_save = conn_save.cursor()
+        # ---------------------
+        # Save to DB safely
+        # ---------------------
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
 
-        cursor_save.execute(
-            "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
-            (user_message, full_reply)
-        )
+            cursor.execute(
+                "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
+                (user_message, full_reply)
+            )
 
-        conn_save.commit()
-        cursor_save.close()
-        conn_save.close()
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+        except Exception as e:
+            print("DB save error:", e)
 
         return jsonify({"reply": full_reply})
 
     except Exception as e:
-        print("ERROR:", e)
+        print("Main error:", e)
         return jsonify({"reply": "Baby thoda network issue aa gaya 😔 try again"})
 
 
 # =========================
-# Run App
+# IMPORTANT: DO NOT RUN app.run() ON RENDER
+# Gunicorn handles it
 # =========================
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
