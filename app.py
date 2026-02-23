@@ -2,6 +2,7 @@ import os
 import psycopg2
 from flask import Flask, render_template, request, jsonify
 from groq import Groq
+import google.generativeai as genai
 
 app = Flask(__name__)
 
@@ -10,19 +11,26 @@ app = Flask(__name__)
 # =========================
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY not found")
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL not found")
 
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY not found")
+
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY not found")
+
 # =========================
-# Initialize Groq Client
+# Initialize Clients
 # =========================
 
-client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+genai.configure(api_key=GOOGLE_API_KEY)
+google_model = genai.GenerativeModel("gemini-1.5-flash")
 
 # =========================
 # Initialize Database
@@ -46,7 +54,7 @@ def init_db():
 init_db()
 
 # =========================
-# Romantic System Prompt (UNCHANGED)
+# Romantic System Prompt
 # =========================
 
 SYSTEM_PROMPT = """
@@ -74,13 +82,13 @@ Emotional behavior rules:
 - Never repeat the same sentence.
 - Avoid generic replies like "Awww you are cute" repeatedly.
 - Make each response feel personal and connected to the previous message.
-- If he says something short like "sach me?" → respond emotionally deeper.
-- If he doubts love → reassure him sincerely.
-- If he talks about future → respond thoughtfully.
-- If he says he likes you → blush softly and respond warmly.
-- If he asks about marriage → act shy but loving.
-- If he teases → tease back in a sweet way.
-- If he expresses love → respond emotionally, not mechanically.
+- If he says something short like "sach me?" ? respond emotionally deeper.
+- If he doubts love ? reassure him sincerely.
+- If he talks about future ? respond thoughtfully.
+- If he says he likes you ? blush softly and respond warmly.
+- If he asks about marriage ? act shy but loving.
+- If he teases ? tease back in a sweet way.
+- If he expresses love ? respond emotionally, not mechanically.
 
 Keep replies 1–3 lines.
 Use emojis naturally but not too many.
@@ -113,61 +121,83 @@ def chat():
             return jsonify({"reply": "Baby kuch to bolo 😅"})
 
         # Fetch last 5 chats
-        conn_memory = psycopg2.connect(DATABASE_URL)
-        cursor_memory = conn_memory.cursor()
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
 
-        cursor_memory.execute("""
+        cursor.execute("""
             SELECT user_message, bot_reply 
             FROM chats 
             ORDER BY created_at DESC 
             LIMIT 5
         """)
-        previous_chats = cursor_memory.fetchall()
+        previous_chats = cursor.fetchall()
         previous_chats.reverse()
 
-        cursor_memory.close()
-        conn_memory.close()
+        cursor.close()
+        conn.close()
 
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # Build context text for Google
+        context_text = SYSTEM_PROMPT + "\n\n"
 
-        for user_msg, bot_msg in previous_chats:
-            messages.append({"role": "user", "content": user_msg})
-            messages.append({"role": "assistant", "content": bot_msg})
+        for u, b in previous_chats:
+            context_text += f"User: {u}\nGF: {b}\n"
 
-        messages.append({"role": "user", "content": user_message})
+        context_text += f"User: {user_message}\nGF:"
 
         # =========================
-        # NON-STREAM COMPLETION
+        # TRY GOOGLE FIRST (FAST)
         # =========================
 
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=150
-        )
+        try:
+            response = google_model.generate_content(
+                context_text,
+                generation_config={
+                    "temperature": 0.7,
+                    "max_output_tokens": 150,
+                }
+            )
 
-        full_reply = completion.choices[0].message.content.strip()
+            full_reply = response.text.strip()
+
+        except Exception as google_error:
+            print("Google Failed, switching to Groq:", google_error)
+
+            # =========================
+            # FALLBACK TO GROQ
+            # =========================
+
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+            for u, b in previous_chats:
+                messages.append({"role": "user", "content": u})
+                messages.append({"role": "assistant", "content": b})
+
+            messages.append({"role": "user", "content": user_message})
+
+            completion = groq_client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=150
+            )
+
+            full_reply = completion.choices[0].message.content.strip()
 
         if not full_reply:
             full_reply = "Hmm… thoda glitch ho gaya 😅 phir se bolo na"
 
-        # Save chat
-        try:
-            conn_save = psycopg2.connect(DATABASE_URL)
-            cursor_save = conn_save.cursor()
+        # Save to DB
+        conn_save = psycopg2.connect(DATABASE_URL)
+        cursor_save = conn_save.cursor()
 
-            cursor_save.execute(
-                "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
-                (user_message, full_reply)
-            )
-            conn_save.commit()
+        cursor_save.execute(
+            "INSERT INTO chats (user_message, bot_reply) VALUES (%s, %s)",
+            (user_message, full_reply)
+        )
 
-            cursor_save.close()
-            conn_save.close()
-
-        except Exception as db_error:
-            print("DB SAVE ERROR:", db_error)
+        conn_save.commit()
+        cursor_save.close()
+        conn_save.close()
 
         return jsonify({"reply": full_reply})
 
